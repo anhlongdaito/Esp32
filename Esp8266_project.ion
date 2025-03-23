@@ -1,0 +1,51 @@
+#include <Arduino.h>
+#include <IRremoteESP8266.h>
+#include <IRsend.h>
+#include "ir_TV_BeGone.h" // Include TV-B-Gone IR codes
+
+const uint16_t IR_LED_PIN = 4;  // D2 on NodeMCU
+const uint8_t BUTTON_PIN = 5;   // D1 on NodeMCU
+const uint8_t LED_PIN = 2;      // D4 on NodeMCU (Indicator LED)
+
+IRsend irsend(IR_LED_PIN);
+bool isRunning = false;
+unsigned long lastButtonPress = 0;
+
+void setup() {
+    Serial.begin(115200);
+    pinMode(BUTTON_PIN, INPUT_PULLUP);
+    pinMode(LED_PIN, OUTPUT);
+    irsend.begin(38);  // Khởi động IRsend với tần số 38kHz
+
+    // Blink LED khi khởi động
+    digitalWrite(LED_PIN, HIGH);
+    delay(1000);
+    digitalWrite(LED_PIN, LOW);
+}
+
+void loop() {
+    if (digitalRead(BUTTON_PIN) == LOW && !isRunning) {
+        // Chống dội nút: kiểm tra nếu đã qua ít nhất 300ms từ lần bấm trước
+        if (millis() - lastButtonPress < 300) return;
+        lastButtonPress = millis();
+
+        isRunning = true;
+        Serial.println("Starting TV-B-Gone...");
+
+        for (uint8_t i = 0; i < NUM_TV_POWER_CODES; i++) {
+            Serial.print("Sending code ");
+            Serial.println(i);
+
+            // Blink LED khi phát tín hiệu IR
+            digitalWrite(LED_PIN, HIGH);
+            irsend.sendRaw((uint16_t*)TV_POWER_CODES[i], TV_POWER_CODE_LENGTHS[i], 38);
+            digitalWrite(LED_PIN, LOW);
+
+            delay(200); // Đợi 200ms giữa các mã
+        }
+
+        Serial.println("Completed. Waiting 30 seconds before reactivation.");
+        delay(30000); // Tránh spam tín hiệu
+        isRunning = false;
+    }
+}
